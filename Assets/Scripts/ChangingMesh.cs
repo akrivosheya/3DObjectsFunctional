@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
 
 public class ChangingMesh : MonoBehaviour
@@ -8,31 +7,31 @@ public class ChangingMesh : MonoBehaviour
     /*
         Ax + By + Cz + D = 0
     */
-    [SerializeField] public MeshFilter innerFilter;
     private Color ColorForSection = Color.white;
     private Color ColorForOuter = Color.black;
     private const int NoVertixIndex = -1;
-    private MeshFilter _outerFilter;
+    private MeshFilter _detailedFilter;
     private MeshCollider _collider;
     private Rigidbody _rigidbody;
     private VerticesData _detailedVertices = new VerticesData();
-    private VerticesData _innerVertices = new VerticesData();
+    private VerticesData _colliderVertices = new VerticesData();
     private List<int> _detailedTriangles;
-    private List<int> _innerTriangles;
+    private List<int> _colliderTriangles;
     private List<int> _emptyList = new List<int>();
     private bool _canSlash = false;
 
     void Start()
     {
         _rigidbody = GetComponent<Rigidbody>();
-        _outerFilter = GetComponent<MeshFilter>();
+        _detailedFilter = GetComponent<MeshFilter>();
         _collider = GetComponent<MeshCollider>();
         _detailedTriangles = new List<int>();
-        _innerTriangles = new List<int>();
-        Mesh mesh = _outerFilter.mesh;
+        _colliderTriangles = new List<int>();
+        Mesh mesh = _detailedFilter.mesh;
         InitializeVerticesData(mesh, _detailedTriangles, _detailedVertices);
-        mesh = innerFilter.mesh;
-        InitializeVerticesData(mesh, _innerTriangles, _innerVertices);
+        mesh.subMeshCount = 2;
+        mesh = _collider.sharedMesh;
+        InitializeVerticesData(mesh, _colliderTriangles, _colliderVertices);
         mesh.subMeshCount = 2;
         _collider.sharedMesh = mesh;
         StartCoroutine(AllowSlashing());
@@ -46,8 +45,8 @@ public class ChangingMesh : MonoBehaviour
         }
         _canSlash = false;
         GameObject secondHalf = null;
-        DivideByPlane(A, B, C, D, ref _detailedTriangles, _detailedVertices, ref secondHalf);
-        SliceByPlane(A, B, C, D, ref _innerTriangles, _innerVertices, ref secondHalf);
+        SliceByPlane(A, B, C, D, false, ref _detailedTriangles, _detailedVertices, ref secondHalf);
+        SliceByPlane(A, B, C, D, true, ref _colliderTriangles, _colliderVertices, ref secondHalf);
         StartCoroutine(AllowSlashing());
     }
 
@@ -86,7 +85,7 @@ public class ChangingMesh : MonoBehaviour
         _detailedTriangles = leftTriangles;
     }
 
-    public void SliceByPlane(float A, float B, float C, float D, ref List<int> triangles, VerticesData verticesData, ref GameObject secondHalf)
+    public void SliceByPlane(float A, float B, float C, float D, bool isCollider, ref List<int> triangles, VerticesData verticesData, ref GameObject secondHalf)
     {
         var leftTriangles = new List<int>(triangles.Count / 2);
         var rightTriangles = new List<int>(triangles.Count / 2);
@@ -244,9 +243,16 @@ public class ChangingMesh : MonoBehaviour
         }
         var mesh = new Mesh();
         mesh.name = "Inner";
-        SetVerticesData(mesh, rightVertices, verticesData, ref triangles, rightTriangles, rightSection);
-        secondHalf.GetComponent<MeshCollider>().sharedMesh = mesh;
-        secondHalf.GetComponent<ChangingMesh>().innerFilter.mesh = mesh;
+        if(isCollider)
+        {
+            SetVerticesData(mesh, rightVertices, verticesData, ref triangles, rightTriangles, rightSection);
+            secondHalf.GetComponent<MeshCollider>().sharedMesh = mesh;
+        }
+        else
+        {
+            SetVerticesData(secondHalf.GetComponent<MeshFilter>().mesh, rightVertices, verticesData, ref triangles, rightTriangles, rightSection);
+            secondHalf.GetComponent<ChangingMesh>()._detailedTriangles = rightTriangles;
+        }
 
         //Формирование нормалей и карты текстуры для левого объекта
         foreach(int vertixIndex in leftSection)
@@ -261,10 +267,17 @@ public class ChangingMesh : MonoBehaviour
 
         //формирование меша для родительского объекта
         mesh = new Mesh();
-        SetVerticesData(mesh, leftVertices, verticesData, ref triangles, leftTriangles, leftSection);
-        _collider.sharedMesh = mesh;
-        _collider.convex = true;
-        SetVerticesData(innerFilter.mesh, leftVertices, verticesData, ref triangles, leftTriangles, leftSection);
+        if(isCollider)
+        {
+            SetVerticesData(mesh, leftVertices, verticesData, ref triangles, leftTriangles, leftSection);
+            _collider.sharedMesh = mesh;
+            _collider.convex = true;
+        }
+        else
+        {
+            SetVerticesData(GetComponent<MeshFilter>().mesh, leftVertices, verticesData, ref triangles, leftTriangles, leftSection);
+            _detailedTriangles = leftTriangles;
+        }
     }
 
     private void InitializeVerticesData(Mesh mesh, List<int> triangles, VerticesData verticesData)
