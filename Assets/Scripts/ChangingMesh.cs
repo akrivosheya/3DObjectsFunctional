@@ -18,6 +18,7 @@ public class ChangingMesh : MonoBehaviour
     private List<int> _colliderTriangles;
     private List<int> _emptyList = new List<int>();
     private bool _canSlash = false;
+    private System.TimeSpan total = new System.TimeSpan(0);
 
     void Start()
     {
@@ -46,6 +47,7 @@ public class ChangingMesh : MonoBehaviour
         }
         _canSlash = false;
         GameObject secondHalf = null;
+
         SliceByPlane(A, B, C, D, false, ref _detailedTriangles, _detailedVertices, ref secondHalf);
         SliceByPlane(A, B, C, D, true, ref _colliderTriangles, _colliderVertices, ref secondHalf);
         StartCoroutine(AllowSlashing());
@@ -63,13 +65,13 @@ public class ChangingMesh : MonoBehaviour
         //var leftVertices = new VerticesData(verticesData.Count / 2);
         //var rightVertices = new VerticesData(verticesData.Count / 2);
         var mainVertixIndex = NoVertixIndex;
+        //нужно нормально пересчитать
         float maxX = 0;
         float maxY = 0;
         float maxZ = 0;
         float minX = 0;
         float minY = 0;
         float minZ = 0;
-
         //Основной цикл
         for(int i = 0; i <= triangles.Count - 3; i += 3)
         {
@@ -77,12 +79,18 @@ public class ChangingMesh : MonoBehaviour
             var secondVertix = verticesData.vertices[triangles[i + 1]];
             var thirdVertix = verticesData.vertices[triangles[i + 2]];
             //исправь максимумы
-            maxX = Max(firstVertix.x, secondVertix.x, thirdVertix.x, maxX);
+            /*maxX = Max(firstVertix.x, secondVertix.x, thirdVertix.x, maxX);
             minX = Min(firstVertix.x, secondVertix.x, thirdVertix.x, minX);
             minY = Min(firstVertix.y, secondVertix.y, thirdVertix.y, minY);
             maxY = Max(firstVertix.y, secondVertix.y, thirdVertix.y, maxY);
             minZ = Min(firstVertix.z, secondVertix.z, thirdVertix.z, minZ);
-            maxZ = Max(firstVertix.z, secondVertix.z, thirdVertix.z, maxZ);
+            maxZ = Max(firstVertix.z, secondVertix.z, thirdVertix.z, maxZ);*/
+            maxX = 1;
+            minX = 0;
+            minY = 0;
+            maxY = 1;
+            minZ = 0;
+            maxZ = 1;
             if(IsToLeftOfPlane(firstVertix, A, B, C, D) && IsToLeftOfPlane(secondVertix, A, B, C, D) && IsToLeftOfPlane(thirdVertix, A, B, C, D))
             {
                 /*AddNewVertices(leftVertices, verticesData, triangles[i]);
@@ -175,6 +183,7 @@ public class ChangingMesh : MonoBehaviour
         //нужна еще вершина
         verticesData.normals[mainVertixIndex] = commonNormalForLeftSection;
         verticesData.normals[mainVertixIndex] = commonNormalForRightSection;
+        
 
         //Добавление треугольников для каждого сечения
         foreach(int vertixIndex in sectionVertices.Keys)
@@ -226,7 +235,8 @@ public class ChangingMesh : MonoBehaviour
         }
         else
         {
-            SetVerticesData(secondHalf.GetComponent<MeshFilter>().mesh, verticesData, ref triangles, rightTriangles, rightSection);
+            mesh = secondHalf.GetComponent<MeshFilter>().mesh;
+            SetVerticesData(mesh, verticesData, ref triangles, rightTriangles, rightSection);
             secondHalf.GetComponent<ChangingMesh>()._detailedTriangles = rightTriangles;
             secondHalf.GetComponent<ChangingMesh>()._detailedVertices = verticesData;
         }
@@ -257,7 +267,8 @@ public class ChangingMesh : MonoBehaviour
         }
         else
         {
-            SetVerticesData(GetComponent<MeshFilter>().mesh, verticesData, ref triangles, leftTriangles, leftSection);
+            mesh = GetComponent<MeshFilter>().mesh;
+            SetVerticesData(mesh, verticesData, ref triangles, leftTriangles, leftSection);
             _detailedTriangles = leftTriangles;
         }
     }
@@ -308,6 +319,7 @@ public class ChangingMesh : MonoBehaviour
         oldVerticesData.normals = newVerticesData.normals;
         oldVerticesData.colors = newVerticesData.colors;
         oldVerticesData.uvs = newVerticesData.uvs;*/
+        
 
         mesh.subMeshCount = 2;
         mesh.SetTriangles(_emptyList, 0, true, 0);
