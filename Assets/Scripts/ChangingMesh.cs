@@ -24,12 +24,16 @@ public class ChangingMesh : MonoBehaviour
         _rigidbody = GetComponent<Rigidbody>();
         _detailedFilter = GetComponent<MeshFilter>();
         var collider = GetComponent<MeshCollider>();
-        _detailedTriangles = new List<int>();
-        _colliderTriangles = new List<int>();
-        Mesh mesh = _detailedFilter.mesh;
-        InitializeVerticesData(mesh, _detailedTriangles, _detailedVertices);
-        mesh.subMeshCount = 2;
+        Mesh mesh;
+        if(_detailedTriangles?.Count is null)
+        {
+            _detailedTriangles = new List<int>();
+            mesh = _detailedFilter.mesh;
+            InitializeVerticesData(mesh, _detailedTriangles, _detailedVertices);
+            mesh.subMeshCount = 2;
+        }
         mesh = collider.sharedMesh;
+        _colliderTriangles = new List<int>();
         InitializeVerticesData(mesh, _colliderTriangles, _colliderVertices);
         StartCoroutine(AllowSlashing());
     }
@@ -213,16 +217,18 @@ public class ChangingMesh : MonoBehaviour
             secondHalf = Instantiate(this.gameObject);
         }
         var mesh = new Mesh();
-        mesh.name = "Inner";
+        mesh.name = "Child";
         if(isCollider)
         {
             SetVerticesData(mesh, verticesData, ref triangles, rightTriangles, rightSection);
+            FixUnusedVertices(mesh, triangles);
             secondHalf.GetComponent<MeshCollider>().sharedMesh = mesh;
         }
         else
         {
             SetVerticesData(secondHalf.GetComponent<MeshFilter>().mesh, verticesData, ref triangles, rightTriangles, rightSection);
             secondHalf.GetComponent<ChangingMesh>()._detailedTriangles = rightTriangles;
+            secondHalf.GetComponent<ChangingMesh>()._detailedVertices = verticesData;
         }
 
         //Формирование нормалей и карты текстуры для левого объекта
@@ -240,11 +246,13 @@ public class ChangingMesh : MonoBehaviour
 
         //формирование меша для родительского объекта
         mesh = new Mesh();
+        mesh.name = "Base";
         if(isCollider)
         {
             var collider = GetComponent<MeshCollider>();
             collider.sharedMesh = mesh;
             SetVerticesData(collider.sharedMesh, verticesData, ref triangles, leftTriangles, leftSection);
+            FixUnusedVertices(collider.sharedMesh, triangles);
             collider.convex = true;
         }
         else
@@ -252,6 +260,22 @@ public class ChangingMesh : MonoBehaviour
             SetVerticesData(GetComponent<MeshFilter>().mesh, verticesData, ref triangles, leftTriangles, leftSection);
             _detailedTriangles = leftTriangles;
         }
+    }
+
+    //лучше использовать другой подход
+    private void FixUnusedVertices(Mesh mesh, List<int> triangles)
+    {
+        var vertices = new List<Vector3>();
+        mesh.GetVertices(vertices);
+        var mainVertixIndex = triangles[0];
+        for(int i = 0; i < vertices.Count; ++i)
+        {
+            if(!triangles.Contains(i))
+            {
+                vertices[i] = vertices[mainVertixIndex];
+            }
+        }
+        mesh.SetVertices(vertices);
     }
 
     private void InitializeVerticesData(Mesh mesh, List<int> triangles, VerticesData verticesData)

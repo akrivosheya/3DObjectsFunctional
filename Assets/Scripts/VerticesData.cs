@@ -9,7 +9,6 @@ public class VerticesData
     public List<Color> colors { get; set; }
     public List<Vector3> normals { get; set; }
     public List<Vector2> uvs { get; set; }
-    public Dictionary<int, int> oldToNewVertices { get; set; }
 
     public VerticesData()
     {
@@ -17,7 +16,6 @@ public class VerticesData
         colors = new List<Color>();
         normals = new List<Vector3>();
         uvs = new List<Vector2>();
-        oldToNewVertices = new Dictionary<int, int>();
     }
 
     public VerticesData(int count)
@@ -26,14 +24,5 @@ public class VerticesData
         colors = new List<Color>(count);
         normals = new List<Vector3>(count);
         uvs = new List<Vector2>(count);
-        oldToNewVertices = new Dictionary<int, int>(count);
-    }
-
-    public int this[int index]
-    {
-        get
-        {
-            return oldToNewVertices[index];
-        }
     }
 }
