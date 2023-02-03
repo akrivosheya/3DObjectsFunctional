@@ -65,14 +65,14 @@ public class ChangingMesh : MonoBehaviour
 
     public void SliceByPlane(float A, float B, float C, float D, bool isCollider, ref List<int> triangles, VerticesData verticesData, ref GameObject secondHalf)
     {
-        var leftTriangles = new List<int>(triangles.Count / 2);
-        var rightTriangles = new List<int>(triangles.Count / 2);
-        var leftSection = new List<int>(triangles.Count / 2);
-        var rightSection = new List<int>(triangles.Count / 2);
-        var localLeftVertices = new List<int>(2);
-        var localRightVertices = new List<int>(2);
-        var sectionVertices = new Dictionary<int, int>(triangles.Count / 2);
+        var sectionVertices = new Dictionary<int, int>();
         var mainVertixIndex = NoVertixIndex;
+        var leftTriangles = new List<int>();
+        var rightTriangles = new List<int>();
+        var leftSection = new List<int>();
+        var rightSection = new List<int>();
+        var localLeftVertices = new List<int>();
+        var localRightVertices = new List<int>();
         //нужно нормально пересчитать
         float maxX = 0;
         float maxY = 0;
@@ -81,7 +81,6 @@ public class ChangingMesh : MonoBehaviour
         float minY = 0;
         float minZ = 0;
         //Основной цикл
-            Debug.Log("\nStart");
         for(int i = 0; i <= triangles.Count - 3; i += 3)
         {
             var firstVertix = verticesData.vertices[triangles[i]];
@@ -96,10 +95,8 @@ public class ChangingMesh : MonoBehaviour
             maxZ = 1;
             if(IsToLeftOfPlane(firstVertix, A, B, C, D) && IsToLeftOfPlane(secondVertix, A, B, C, D) && IsToLeftOfPlane(thirdVertix, A, B, C, D))
             {
-                Debug.Log(verticesData.colors[triangles[i]] + " " + verticesData.colors[triangles[i + 1]] + " " + verticesData.colors[triangles[i + 2]]);
                 if(verticesData.colors[triangles[i]].Equals(ColorForSection))
                 {
-                    Debug.Log("Go right");
                     leftSection.Add(triangles[i]);
                     leftSection.Add(triangles[i + 1]);
                     leftSection.Add(triangles[i + 2]);
@@ -172,7 +169,6 @@ public class ChangingMesh : MonoBehaviour
                 localRightVertices.Clear();
             }
         }
-        Debug.Log("Indices: " + leftSection.Count);
         var commonNormalForLeftSection = new Vector3(A, B, C);
         var commonNormalForRightSection = new Vector3(-A, -B, -C);
 
@@ -196,7 +192,6 @@ public class ChangingMesh : MonoBehaviour
             rightSection.Add(sectionVertices[vertixIndex]);
             rightSection.Add(vertixIndex);
         }
-        Debug.Log("Indices: " + leftSection.Count);
 
         //нужны копии вершин
         //Формирование нормалей и карты текстуры для правого объекта
@@ -243,7 +238,6 @@ public class ChangingMesh : MonoBehaviour
             verticesData.normals[vertixIndex] = commonNormalForLeftSection;
             verticesData.uvs[vertixIndex] = new Vector2((verticesData.vertices[vertixIndex].z - minZ) / (maxX - minX), (verticesData.vertices[vertixIndex].y - minY) / (maxY - minY));
         }
-
         //формирование меша для родительского объекта
         mesh = new Mesh();
         mesh.name = "Base";
@@ -316,7 +310,6 @@ public class ChangingMesh : MonoBehaviour
         mesh.SetNormals(oldVerticesData.normals);
         mesh.SetColors(oldVerticesData.colors);
         mesh.SetUVs(0, oldVerticesData.uvs);
-        mesh.SetUVs(1, oldVerticesData.uvs);
     }
 
     //добавление вершин
