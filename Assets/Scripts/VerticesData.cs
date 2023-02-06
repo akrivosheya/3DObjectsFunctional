@@ -25,4 +25,12 @@ public class VerticesData
         normals = new List<Vector3>(count);
         uvs = new List<Vector2>(count);
     }
+
+    public void Add(VerticesData newVerticesData)
+    {
+        vertices.AddRange(newVerticesData.vertices);
+        colors.AddRange(newVerticesData.colors);
+        normals.AddRange(newVerticesData.normals);
+        uvs.AddRange(newVerticesData.uvs);
+    }
 }
