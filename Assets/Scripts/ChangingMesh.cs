@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public class ChangingMesh : MonoBehaviour
@@ -8,11 +9,13 @@ public class ChangingMesh : MonoBehaviour
         Ax + By + Cz + D = 0
     */
     [SerializeField] private Vector3 _childPosition = new Vector3(4f, 0f, 4f);
+    private readonly Color ColorForSection = Color.white;
+    private readonly Color ColorForOuter = Color.black;
+    private readonly int NoVertixIndex = -1;
+    private readonly int TasksCount = 3;
+    private readonly int TrianglesIndeces = 3;
     private GameObject _secondHalf = null;
     private Mesh _secondMesh;
-    private Color ColorForSection = Color.white;
-    private Color ColorForOuter = Color.black;
-    private const int NoVertixIndex = -1;
     private MeshFilter _detailedFilter;
     private Rigidbody _rigidbody;
     private VerticesData _detailedVertices = new VerticesData();
@@ -56,14 +59,14 @@ public class ChangingMesh : MonoBehaviour
         }
         _canSlash = false;
         var time = System.DateTime.Now;
-        SliceByPlane(A, B, C, D, false, ref _detailedTriangles, _detailedVertices, ref _secondHalf);
+        SliceByPlane(A, B, C, D, false, _detailedTriangles, _detailedVertices, ref _secondHalf);
         total += (System.DateTime.Now - time);
         Debug.Log("Time: " + total);
-        SliceByPlane(A, B, C, D, true, ref _colliderTriangles, _colliderVertices, ref _secondHalf);
+        SliceByPlane(A, B, C, D, true, _colliderTriangles, _colliderVertices, ref _secondHalf);
         StartCoroutine(AllowSlashing());
     }
 
-    public void SliceByPlane(float A, float B, float C, float D, bool isCollider, ref List<int> triangles, VerticesData verticesData, ref GameObject secondHalf)
+    private void SliceByPlane(float A, float B, float C, float D, bool isCollider, List<int> triangles, VerticesData verticesData, ref GameObject secondHalf)
     {
         var sectionVertices = new Dictionary<int, int>();
         var mainVertixIndex = NoVertixIndex;
@@ -71,8 +74,6 @@ public class ChangingMesh : MonoBehaviour
         var rightTriangles = new List<int>();
         var leftSection = new List<int>();
         var rightSection = new List<int>();
-        var localLeftVertices = new List<int>();
-        var localRightVertices = new List<int>();
         //нужно нормально пересчитать
         float maxX = 0;
         float maxY = 0;
@@ -80,95 +81,132 @@ public class ChangingMesh : MonoBehaviour
         float minX = 0;
         float minY = 0;
         float minZ = 0;
+
+        List<Task<TaskData>> tasks = new List<Task<TaskData>>();
         //Основной цикл
-        for(int i = 0; i <= triangles.Count - 3; i += 3)
+        int indecesForOneTask = (triangles.Count / TasksCount) + (TrianglesIndeces - triangles.Count / TasksCount % TrianglesIndeces);
+        for(int t = 0; t < TasksCount; ++t)
         {
-            var firstVertix = verticesData.vertices[triangles[i]];
-            var secondVertix = verticesData.vertices[triangles[i + 1]];
-            var thirdVertix = verticesData.vertices[triangles[i + 2]];
-            //исправь максимумы
-            maxX = 1;
-            minX = 0;
-            minY = 0;
-            maxY = 1;
-            minZ = 0;
-            maxZ = 1;
-            if(IsToLeftOfPlane(firstVertix, A, B, C, D) && IsToLeftOfPlane(secondVertix, A, B, C, D) && IsToLeftOfPlane(thirdVertix, A, B, C, D))
-            {
-                if(verticesData.colors[triangles[i]].Equals(ColorForSection))
+            int firstIndex = t * indecesForOneTask;
+            int lastIndex = (t == TasksCount - 1) ? triangles.Count : indecesForOneTask + firstIndex;
+            tasks.Add(new Task<TaskData>(() => {
+                var taskData = new TaskData();
+                var localLeftVertices = new List<int>();
+                var localRightVertices = new List<int>();
+                for(int i = firstIndex; i < lastIndex; i += TrianglesIndeces)
                 {
-                    leftSection.Add(triangles[i]);
-                    leftSection.Add(triangles[i + 1]);
-                    leftSection.Add(triangles[i + 2]);
-                }
-                else
-                {
-                    leftTriangles.Add(triangles[i]);
-                    leftTriangles.Add(triangles[i + 1]);
-                    leftTriangles.Add(triangles[i + 2]);
-                }
-            }
-            else if(IsToRightOfPlane(firstVertix, A, B, C, D) && IsToRightOfPlane(secondVertix, A, B, C, D) && IsToRightOfPlane(thirdVertix, A, B, C, D))
-            {
-                if(verticesData.colors[triangles[i]].Equals(ColorForSection))
-                {
-                    rightSection.Add(triangles[i]);
-                    rightSection.Add(triangles[i + 1]);
-                    rightSection.Add(triangles[i + 2]);
-                }
-                else
-                {
-                    rightTriangles.Add(triangles[i]);
-                    rightTriangles.Add(triangles[i + 1]);
-                    rightTriangles.Add(triangles[i + 2]);
-                }
-            }
-            else
-            {
-                //Обработка разреза
-                SeparateVertices(localLeftVertices, localRightVertices, triangles, i, verticesData, A, B, C, D);
-                var colorForNewVertices = verticesData.colors[localLeftVertices[0]];
-                if(localLeftVertices.Count > localRightVertices.Count)
-                {
-                    //картеж непонятен
-                    var newVertices = GetNewVertices(verticesData.vertices[localLeftVertices[0]], verticesData.vertices[localLeftVertices[1]], verticesData.vertices[localRightVertices[0]],
-                                    A, B, C, D);
-                    if(colorForNewVertices.Equals(ColorForSection))
+                    var firstVertix = verticesData.vertices[triangles[i]];
+                    var secondVertix = verticesData.vertices[triangles[i + 1]];
+                    var thirdVertix = verticesData.vertices[triangles[i + 2]];
+                    //исправь максимумы
+                    maxX = 1;
+                    minX = 0;
+                    minY = 0;
+                    maxY = 1;
+                    minZ = 0;
+                    maxZ = 1;
+                    if(IsToLeftOfPlane(firstVertix, A, B, C, D) && IsToLeftOfPlane(secondVertix, A, B, C, D) && IsToLeftOfPlane(thirdVertix, A, B, C, D))
                     {
-                        AddFormedTriangles(newVertices.Item1, newVertices.Item2, localLeftVertices, localRightVertices, leftSection, rightSection,
-                                        verticesData, colorForNewVertices);
+                        if(verticesData.colors[triangles[i]].Equals(ColorForSection))
+                        {
+                            taskData.LeftSection.Add(triangles[i]);
+                            taskData.LeftSection.Add(triangles[i + 1]);
+                            taskData.LeftSection.Add(triangles[i + 2]);
+                        }
+                        else
+                        {
+                            taskData.LeftTriangles.Add(triangles[i]);
+                            taskData.LeftTriangles.Add(triangles[i + 1]);
+                            taskData.LeftTriangles.Add(triangles[i + 2]);
+                        }
+                    }
+                    else if(IsToRightOfPlane(firstVertix, A, B, C, D) && IsToRightOfPlane(secondVertix, A, B, C, D) && IsToRightOfPlane(thirdVertix, A, B, C, D))
+                    {
+                        if(verticesData.colors[triangles[i]].Equals(ColorForSection))
+                        {
+                            taskData.RightSection.Add(triangles[i]);
+                            taskData.RightSection.Add(triangles[i + 1]);
+                            taskData.RightSection.Add(triangles[i + 2]);
+                        }
+                        else
+                        {
+                            taskData.RightTriangles.Add(triangles[i]);
+                            taskData.RightTriangles.Add(triangles[i + 1]);
+                            taskData.RightTriangles.Add(triangles[i + 2]);
+                        }
                     }
                     else
                     {
-                        AddFormedTriangles(newVertices.Item1, newVertices.Item2, localLeftVertices, localRightVertices, leftTriangles, rightTriangles,
-                                        verticesData, colorForNewVertices);
+                        //Обработка разреза
+                        SeparateVertices(localLeftVertices, localRightVertices, triangles, i, verticesData, A, B, C, D);
+                        var colorForNewVertices = verticesData.colors[localLeftVertices[0]];
+                        if(localLeftVertices.Count > localRightVertices.Count)
+                        {
+                            //картеж непонятен
+                            var newVertices = GetNewVertices(verticesData.vertices[localLeftVertices[0]], verticesData.vertices[localLeftVertices[1]], verticesData.vertices[localRightVertices[0]],
+                                            A, B, C, D);
+                            if(colorForNewVertices.Equals(ColorForSection))
+                            {
+                                AddFormedTriangles(newVertices.Item1, newVertices.Item2, localLeftVertices, localRightVertices,
+                                                taskData.LeftSection, taskData.RightSection, taskData.LeftSectionToModify, taskData.RightSectionToModify,
+                                                verticesData, taskData.NewVericesData, colorForNewVertices);
+                            }
+                            else
+                            {
+                                AddFormedTriangles(newVertices.Item1, newVertices.Item2, localLeftVertices, localRightVertices,
+                                                taskData.LeftTriangles, taskData.RightTriangles, taskData.LeftTrianglesToModify, taskData.RightTrianglesToModify,
+                                                verticesData, taskData.NewVericesData, colorForNewVertices);
+                            }
+                            taskData.SectionVertices.Add(taskData.NewVericesData.Count - 1, taskData.NewVericesData.Count - 2);
+                        }
+                        else
+                        {
+                            var newVertices = GetNewVertices(verticesData.vertices[localRightVertices[0]], verticesData.vertices[localRightVertices[1]], verticesData.vertices[localLeftVertices[0]],
+                                            A, B, C, D);
+                            if(colorForNewVertices.Equals(ColorForSection))
+                            {
+                                AddFormedTriangles(newVertices.Item1, newVertices.Item2, localRightVertices, localLeftVertices,
+                                                taskData.RightSection, taskData.LeftSection, taskData.RightSectionToModify, taskData.LeftSectionToModify,
+                                                verticesData, taskData.NewVericesData, colorForNewVertices);
+                            }
+                            else
+                            {
+                                AddFormedTriangles(newVertices.Item1, newVertices.Item2, localRightVertices, localLeftVertices,
+                                                taskData.RightTriangles, taskData.LeftTriangles, taskData.RightTrianglesToModify, taskData.LeftTrianglesToModify,
+                                                verticesData,taskData.NewVericesData, colorForNewVertices);
+                            }
+                            taskData.SectionVertices.Add(taskData.NewVericesData.Count - 2, taskData.NewVericesData.Count - 1);
+                        }
+                        localLeftVertices.Clear();
+                        localRightVertices.Clear();
                     }
-                    sectionVertices.Add(verticesData.Count - 1, verticesData.Count - 2);
                 }
-                else
-                {
-                    var newVertices = GetNewVertices(verticesData.vertices[localRightVertices[0]], verticesData.vertices[localRightVertices[1]], verticesData.vertices[localLeftVertices[0]],
-                                    A, B, C, D);
-                    if(colorForNewVertices.Equals(ColorForSection))
-                    {
-                        AddFormedTriangles(newVertices.Item1, newVertices.Item2, localRightVertices, localLeftVertices, rightSection, leftSection,
-                                        verticesData, colorForNewVertices);
-                    }
-                    else
-                    {
-                        AddFormedTriangles(newVertices.Item1, newVertices.Item2, localRightVertices, localLeftVertices, rightTriangles, leftTriangles,
-                                        verticesData, colorForNewVertices);
-                    }
-                    sectionVertices.Add(verticesData.Count - 2, verticesData.Count - 1);
-                }
+                return taskData;
+            }));
+            tasks[tasks.Count - 1].Start();
+        }
+        Task.WaitAll(tasks.ToArray());
+        int offset = verticesData.Count;
+        foreach(var task in tasks)
+        {
+            var taskData = task.Result;
+            taskData.ModifyLists(offset);
+            leftTriangles.AddRange(taskData.LeftTriangles);
+            rightTriangles.AddRange(taskData.RightTriangles);
+            leftSection.AddRange(taskData.LeftSection);
+            rightSection.AddRange(taskData.RightSection);
+            foreach(var indeces in taskData.SectionVertices)
+            {
+                sectionVertices.Add(indeces.Key + offset, indeces.Value + offset);
                 if(mainVertixIndex == NoVertixIndex)
                 {
-                    mainVertixIndex = verticesData.Count - 1;
+                    mainVertixIndex = indeces.Key + offset;
                 }
-                localLeftVertices.Clear();
-                localRightVertices.Clear();
             }
+            verticesData.Add(taskData.NewVericesData);
+            offset += taskData.NewVericesData.Count;
         }
+
         var commonNormalForLeftSection = new Vector3(A, B, C);
         var commonNormalForRightSection = new Vector3(-A, -B, -C);
 
@@ -211,10 +249,10 @@ public class ChangingMesh : MonoBehaviour
         //неявно определяется первое создание
         if(isCollider)
         {
-            SetVerticesData(mesh, verticesData, ref triangles, rightTriangles, rightSection);
-            FixUnusedVertices(mesh, triangles);
+            SetVerticesData(mesh, verticesData, rightTriangles, rightSection);
+            FixUnusedVertices(mesh, rightTriangles);
             secondHalf.GetComponent<MeshCollider>().sharedMesh = mesh;
-            secondHalf.GetComponent<ChangingMesh>()._colliderTriangles = triangles;
+            secondHalf.GetComponent<ChangingMesh>()._colliderTriangles = rightTriangles;
             secondHalf.GetComponent<ChangingMesh>()._colliderVertices = verticesData;
             secondHalf.transform.position = this.transform.position;
             secondHalf.transform.rotation = this.transform.rotation;
@@ -223,8 +261,8 @@ public class ChangingMesh : MonoBehaviour
         else
         {
             mesh = secondHalf.GetComponent<MeshFilter>().mesh;
-            SetVerticesData(mesh, verticesData, ref triangles, rightTriangles, rightSection);
-            secondHalf.GetComponent<ChangingMesh>()._detailedTriangles = triangles;
+            SetVerticesData(mesh, verticesData, rightTriangles, rightSection);
+            secondHalf.GetComponent<ChangingMesh>()._detailedTriangles = rightTriangles;
             secondHalf.GetComponent<ChangingMesh>()._detailedVertices = verticesData;
         }
 
@@ -245,15 +283,16 @@ public class ChangingMesh : MonoBehaviour
         {
             var collider = GetComponent<MeshCollider>();
             collider.sharedMesh = mesh;
-            SetVerticesData(collider.sharedMesh, verticesData, ref triangles, leftTriangles, leftSection);
-            FixUnusedVertices(collider.sharedMesh, triangles);
+            SetVerticesData(collider.sharedMesh, verticesData, leftTriangles, leftSection);
+            FixUnusedVertices(collider.sharedMesh, leftTriangles);
             collider.convex = true;
+            _colliderTriangles = leftTriangles;
         }
         else
         {
             mesh = GetComponent<MeshFilter>().mesh;
-            SetVerticesData(mesh, verticesData, ref triangles, leftTriangles, leftSection);
-            _detailedTriangles = triangles;
+            SetVerticesData(mesh, verticesData, leftTriangles, leftSection);
+            _detailedTriangles = leftTriangles;
         }
     }
 
@@ -297,7 +336,7 @@ public class ChangingMesh : MonoBehaviour
         mesh.SetColors(verticesData.colors);
     }
 
-    private void SetVerticesData(Mesh mesh, VerticesData oldVerticesData, ref List<int> oldTriangles, List<int> triangles, List<int> sectionTriangles)
+    private void SetVerticesData(Mesh mesh, VerticesData oldVerticesData, List<int> triangles, List<int> sectionTriangles)
     {
         mesh.subMeshCount = 2;
         mesh.SetTriangles(_emptyList, 0, true, 0);
@@ -306,7 +345,6 @@ public class ChangingMesh : MonoBehaviour
         mesh.SetTriangles(triangles, 0, true, 0);
         mesh.SetTriangles(sectionTriangles, 1, true, 0);
         triangles.AddRange(sectionTriangles);
-        oldTriangles = triangles;
         mesh.SetNormals(oldVerticesData.normals);
         mesh.SetColors(oldVerticesData.colors);
         mesh.SetUVs(0, oldVerticesData.uvs);
@@ -423,65 +461,71 @@ public class ChangingMesh : MonoBehaviour
 
     private void SetNewUVs(int firstVertixIndex, int secondVertixIndex, int aloneVertixIndex,
                             int firstNewVertixIndex, int secondNewVertixIndex,
-                            VerticesData verticesData)
+                            VerticesData commonVerticesData, VerticesData newVerticesData)
     {
-        var firstUV = verticesData.uvs[firstVertixIndex];
-        var secondUV = verticesData.uvs[secondVertixIndex];
-        var aloneUV = verticesData.uvs[aloneVertixIndex];
-        var magnitude = (verticesData.vertices[firstNewVertixIndex] - verticesData.vertices[firstVertixIndex]).magnitude /
-            (verticesData.vertices[aloneVertixIndex] - verticesData.vertices[firstVertixIndex]).magnitude;
+        var firstUV = commonVerticesData.uvs[firstVertixIndex];
+        var secondUV = commonVerticesData.uvs[secondVertixIndex];
+        var aloneUV = commonVerticesData.uvs[aloneVertixIndex];
+        var magnitude = (newVerticesData.vertices[firstNewVertixIndex] - commonVerticesData.vertices[firstVertixIndex]).magnitude /
+            (commonVerticesData.vertices[aloneVertixIndex] - commonVerticesData.vertices[firstVertixIndex]).magnitude;
         var offset = (aloneUV - firstUV) * magnitude;
-        verticesData.uvs[verticesData.uvs.Count - 2] = firstUV + offset;
-        verticesData.uvs[verticesData.uvs.Count - 2] = firstUV + offset;
-        magnitude = (verticesData.vertices[secondNewVertixIndex] - verticesData.vertices[secondVertixIndex]).magnitude /
-            (verticesData.vertices[aloneVertixIndex] - verticesData.vertices[secondVertixIndex]).magnitude;
+        newVerticesData.uvs[newVerticesData.uvs.Count - 2] = firstUV + offset;//можно проще индексы
+        newVerticesData.uvs[newVerticesData.uvs.Count - 2] = firstUV + offset;
+        magnitude = (newVerticesData.vertices[secondNewVertixIndex] - commonVerticesData.vertices[secondVertixIndex]).magnitude /
+            (commonVerticesData.vertices[aloneVertixIndex] - commonVerticesData.vertices[secondVertixIndex]).magnitude;
         offset = (aloneUV - firstUV) * magnitude;
-        verticesData.uvs[verticesData.uvs.Count - 1] = secondUV + offset;
-        verticesData.uvs[verticesData.uvs.Count - 1] = secondUV + offset;
+        newVerticesData.uvs[newVerticesData.uvs.Count - 1] = secondUV + offset;
+        newVerticesData.uvs[newVerticesData.uvs.Count - 1] = secondUV + offset;
     }
     //добавление вершин
     private void AddFormedTriangles(Vector3 firstVertix, Vector3 secondVertix,//много аргументов
-                                    List<int> newTwoTriangles, List<int> newTriangle,
+                                    List<int> newTwoTriangles, List<int> newTriangle,//непонятны названия
                                     List<int> listForTwoTriangles, List<int> listForOneTriangle,
-                                    VerticesData verticesData,
+                                    List<int> listToModifyForTwoTriangles, List<int> listToModifyForOneTriangles,
+                                    VerticesData commonVerticesData, VerticesData newVerticesData,
                                     Color colorForNewVertices)
     {
-        verticesData.vertices.Add(firstVertix);
-        verticesData.vertices.Add(secondVertix);
-        verticesData.normals.Add(verticesData.normals[newTriangle[0]]);
-        verticesData.normals.Add(verticesData.normals[newTriangle[0]]);
-        verticesData.colors.Add(colorForNewVertices);
-        verticesData.colors.Add(colorForNewVertices);
-        verticesData.uvs.Add(Vector2.zero);
-        verticesData.uvs.Add(Vector2.zero);
+        newVerticesData.vertices.Add(firstVertix);
+        newVerticesData.vertices.Add(secondVertix);
+        newVerticesData.normals.Add(commonVerticesData.normals[newTriangle[0]]);
+        newVerticesData.normals.Add(commonVerticesData.normals[newTriangle[0]]);
+        newVerticesData.colors.Add(colorForNewVertices);
+        newVerticesData.colors.Add(colorForNewVertices);
+        newVerticesData.uvs.Add(Vector2.zero);
+        newVerticesData.uvs.Add(Vector2.zero);
         
         //можно избавиться от лишних параметров
         SetNewUVs(newTwoTriangles[0], newTwoTriangles[1], newTriangle[0], 
-                verticesData.Count - 2, verticesData.Count - 1,
-                verticesData);
+                newVerticesData.Count - 2, newVerticesData.Count - 1,
+                commonVerticesData, newVerticesData);
 
         listForTwoTriangles.Add(newTwoTriangles[0]);
-        listForTwoTriangles.Add(verticesData.Count - 2);
+        listForTwoTriangles.Add(newVerticesData.Count - 2);
+        listToModifyForTwoTriangles.Add(listForTwoTriangles.Count - 1);
         listForTwoTriangles.Add(newTwoTriangles[1]);
 
         listForTwoTriangles.Add(newTwoTriangles[1]);
-        listForTwoTriangles.Add(verticesData.Count - 2);
-        listForTwoTriangles.Add(verticesData.Count - 1);
+        listForTwoTriangles.Add(newVerticesData.Count - 2);
+        listToModifyForTwoTriangles.Add(listForTwoTriangles.Count - 1);
+        listForTwoTriangles.Add(newVerticesData.Count - 1);
+        listToModifyForTwoTriangles.Add(listForTwoTriangles.Count - 1);
 
-        listForOneTriangle.Add(verticesData.Count - 2);
+        listForOneTriangle.Add(newVerticesData.Count - 2);
+        listToModifyForOneTriangles.Add(listForOneTriangle.Count - 1);
         listForOneTriangle.Add(newTriangle[0]);
-        listForOneTriangle.Add(verticesData.Count - 1);
+        listForOneTriangle.Add(newVerticesData.Count - 1);
+        listToModifyForOneTriangles.Add(listForOneTriangle.Count - 1);
 
         //непонятный элемент     
         //нужны еще 2 вершины для двух сечений  
-        verticesData.vertices.Add(firstVertix);
-        verticesData.vertices.Add(secondVertix);
-        verticesData.normals.Add(Vector3.zero);
-        verticesData.normals.Add(Vector3.zero);
-        verticesData.colors.Add(ColorForSection);
-        verticesData.colors.Add(ColorForSection);
-        verticesData.uvs.Add(Vector2.zero);
-        verticesData.uvs.Add(Vector2.zero);
+        newVerticesData.vertices.Add(firstVertix);
+        newVerticesData.vertices.Add(secondVertix);
+        newVerticesData.normals.Add(Vector3.zero);
+        newVerticesData.normals.Add(Vector3.zero);
+        newVerticesData.colors.Add(ColorForSection);
+        newVerticesData.colors.Add(ColorForSection);
+        newVerticesData.uvs.Add(Vector2.zero);
+        newVerticesData.uvs.Add(Vector2.zero);
     }
 
     /*
