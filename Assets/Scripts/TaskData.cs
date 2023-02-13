@@ -71,6 +71,18 @@ public record TaskData
         }
     }
 
+    public void AddSectionsIndeces(int firstIndex, int secondIndex, bool firstIndexIsMain = true)
+    {
+        if(firstIndexIsMain)
+        {
+            SectionIndeces.Add(firstIndex, secondIndex);
+        }
+        else
+        {
+            SectionIndeces.Add(secondIndex, firstIndex);
+        }
+    }
+
     public void ModifyLists(int offset)
     {
         ModifyList(offset, LeftTriangles, LeftTrianglesToModify);

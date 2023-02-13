@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -32,5 +31,13 @@ public class VerticesData
         colors.AddRange(newVerticesData.colors);
         normals.AddRange(newVerticesData.normals);
         uvs.AddRange(newVerticesData.uvs);
+    }
+
+    public void Add(Vector3 vertix, Vector3 normal, Color color, Vector2 uv)
+    {
+        vertices.Add(vertix);
+        normals.Add(normal);
+        colors.Add(color);
+        uvs.Add(uv);
     }
 }
