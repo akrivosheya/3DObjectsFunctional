@@ -9,8 +9,11 @@ public class ChangingMesh : MonoBehaviour
         Ax + By + Cz + D = 0
     */
     [SerializeField] private Vector3 ChildPosition = new Vector3(4f, 0f, 4f);
+    [SerializeField] private int TimeForNoSlashing = 1;
     private readonly Color ColorForSection = Color.white;
     private readonly Color ColorForOuter = Color.black;
+    private readonly string ChildMeshName = "Child";
+    private readonly string BaseMeshName = "Base";
     private readonly int NoIndex = -1;
     private readonly int TasksCount = 4;
     private const int TriangleIndecesCount = 3;
@@ -50,14 +53,16 @@ public class ChangingMesh : MonoBehaviour
         }
         _canSlash = false;
         var plane = new Plane { A=A, B=B, C=C, D=D };
+        var childChangingMesh = _childObject.GetComponent<ChangingMesh>();
         var time = System.DateTime.Now;
-        SliceByPlane(plane, false, _renderingTriangles, _renderingVerticesData);
+        SliceByPlane(plane, false, _renderingTriangles, _renderingVerticesData, childChangingMesh._renderingVerticesData);
         total += (System.DateTime.Now - time);
         Debug.Log("Time: " + total);
-        SliceByPlane(plane, true, _colliderTriangles, _colliderVerticesData);
+        SliceByPlane(plane, true, _colliderTriangles, _colliderVerticesData, childChangingMesh._colliderVerticesData);
+        _childObject.GetComponent<Rigidbody>().constraints = RigidbodyConstraints.None;
     }
 
-    private void SliceByPlane(Plane plane, bool isCollider, List<int> triangles, VerticesData verticesData)
+    private void SliceByPlane(Plane plane, bool isCollider, List<int> triangles, VerticesData verticesData, VerticesData childVerticesData)
     {
         var sectionIndeces = new Dictionary<int, int>();
         var leftTriangles = new List<int>();
@@ -78,17 +83,17 @@ public class ChangingMesh : MonoBehaviour
         Task.WaitAll(tasks.ToArray());
 
         int offset = verticesData.Count;
-        JoinFormedData(verticesData, sectionIndeces, tasks, leftTriangles, rightTriangles, leftSection, rightSection);
+        JoinFormedData(verticesData, childVerticesData, sectionIndeces, tasks, leftTriangles, rightTriangles, leftSection, rightSection);
         var mainSectionIndex = GetMainSectionIndex(sectionIndeces);
         var maxMinCoordinates = FindMaxMinCoordinates(verticesData, offset);
         SetIndecesForSections(sectionIndeces, mainSectionIndex, leftSection, rightSection);
 
         //нужны копии вершин
-        SetVerticesDataForSection(sectionIndeces, verticesData, new Vector3(-plane.A, -plane.B, -plane.C), maxMinCoordinates);
-        SetDataToObject(_childObject, verticesData, rightTriangles, rightSection, isCollider, "Child", this.transform);
+        SetVerticesDataForSection(sectionIndeces, childVerticesData, new Vector3(-plane.A, -plane.B, -plane.C), maxMinCoordinates);
+        SetDataToObject(_childObject, childVerticesData, rightTriangles, rightSection, isCollider, ChildMeshName, this.transform);
 
         SetVerticesDataForSection(sectionIndeces, verticesData, new Vector3(plane.A, plane.B, plane.C), maxMinCoordinates);
-        SetDataToObject(this.gameObject, verticesData, leftTriangles, leftSection, isCollider, "Base", this.transform);
+        SetDataToObject(this.gameObject, verticesData, leftTriangles, leftSection, isCollider, BaseMeshName, this.transform);
     }
 
     //лучше использовать другой подход
@@ -349,7 +354,8 @@ public class ChangingMesh : MonoBehaviour
         listToModifyListForNewOneTriangles.Add(listForNewOneTriangle.Count - 1);
     }
 
-    private void JoinFormedData(VerticesData verticesData, Dictionary<int, int> sectionIndeces, List<Task<TaskData>> tasks,
+    private void JoinFormedData(VerticesData verticesData, VerticesData childVerticesData,
+                                Dictionary<int, int> sectionIndeces, List<Task<TaskData>> tasks,
                                 List<int> leftTriangles, List<int> rightTriangles, List<int> leftSection, List<int> rightSection)
     {
         int offset = verticesData.Count;
@@ -366,6 +372,7 @@ public class ChangingMesh : MonoBehaviour
                 sectionIndeces.Add(indeces.Key + offset, indeces.Value + offset);
             }
             verticesData.Add(taskData.NewVerticesData);
+            childVerticesData.Add(taskData.NewVerticesData);
             offset += taskData.NewVerticesData.Count;
         }
     }
@@ -458,7 +465,6 @@ public class ChangingMesh : MonoBehaviour
             FixUnusedVertices(mesh, triangles);
             collider.convex = true;
             changingMesh._colliderTriangles = triangles;
-            changingMesh._colliderVerticesData = verticesData.Copy();
             objectTransform.position = correctTransform.position;
             objectTransform.rotation = correctTransform.rotation;
             StartCoroutine(changingMesh.PrepareForSlashing());
@@ -469,7 +475,6 @@ public class ChangingMesh : MonoBehaviour
             mesh.name = MeshName;
             SetVerticesData(mesh, verticesData, triangles, section);
             changingMesh._renderingTriangles = triangles;
-            changingMesh._renderingVerticesData = verticesData.Copy();
         }
     }
 
@@ -579,11 +584,15 @@ public class ChangingMesh : MonoBehaviour
 
     private IEnumerator PrepareForSlashing()
     {
-        yield return new WaitForSeconds(2);
+        yield return new WaitForSeconds(TimeForNoSlashing);
 
         _childObject = Instantiate(this.gameObject);
-        _childObject.GetComponent<ChangingMesh>()._isBase = false;
+        var childChangingMesh = _childObject.GetComponent<ChangingMesh>();
+        childChangingMesh._isBase = false;
+        childChangingMesh._renderingVerticesData = _renderingVerticesData.Copy();
+        childChangingMesh._colliderVerticesData = _colliderVerticesData.Copy();
         _childObject.transform.position = ChildPosition;
+        _childObject.GetComponent<Rigidbody>().constraints = RigidbodyConstraints.FreezeAll;
         _childMesh = _childObject.GetComponent<MeshFilter>().mesh;
         _canSlash = true;
     }
