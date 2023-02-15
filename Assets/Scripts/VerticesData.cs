@@ -25,6 +25,14 @@ public class VerticesData
         uvs = new List<Vector2>(count);
     }
 
+    public VerticesData(List<Vector3> initVertices, List<Color> initColors, List<Vector3> initNormals, List<Vector2> initUvs)
+    {
+        vertices = initVertices;
+        colors = initColors;
+        normals = initNormals;
+        uvs = initUvs;
+    }
+
     public void Add(VerticesData newVerticesData)
     {
         vertices.AddRange(newVerticesData.vertices);
@@ -39,5 +47,25 @@ public class VerticesData
         normals.Add(normal);
         colors.Add(color);
         uvs.Add(uv);
+    }
+
+    public void CopyNormals(VerticesData anotherVerticesData)
+    {
+        var newNormals = new Vector3[anotherVerticesData.Count];
+        anotherVerticesData.normals.CopyTo(newNormals);
+        normals = new List<Vector3>(newNormals);
+    }
+
+    public VerticesData Copy()
+    {
+        var newVertices = new Vector3[Count];
+        var newColors = new Color[Count];
+        var newNormals = new Vector3[Count];
+        var newUvs = new Vector2[Count];
+        vertices.CopyTo(newVertices);
+        colors.CopyTo(newColors);
+        normals.CopyTo(newNormals);
+        uvs.CopyTo(newUvs);
+        return new VerticesData(new List<Vector3>(newVertices), new List<Color>(newColors), new List<Vector3>(newNormals), new List<Vector2>(newUvs));
     }
 }

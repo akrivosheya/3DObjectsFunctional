@@ -84,10 +84,10 @@ public class ChangingMesh : MonoBehaviour
         SetIndecesForSections(sectionIndeces, mainSectionIndex, leftSection, rightSection);
 
         //нужны копии вершин
-        SetVerticesDataForSection(rightSection, verticesData, new Vector3(-plane.A, -plane.B, -plane.C), maxMinCoordinates);
+        SetVerticesDataForSection(sectionIndeces, verticesData, new Vector3(-plane.A, -plane.B, -plane.C), maxMinCoordinates);
         SetDataToObject(_childObject, verticesData, rightTriangles, rightSection, isCollider, "Child", this.transform);
 
-        SetVerticesDataForSection(leftSection, verticesData, new Vector3(plane.A, plane.B, plane.C), maxMinCoordinates);
+        SetVerticesDataForSection(sectionIndeces, verticesData, new Vector3(plane.A, plane.B, plane.C), maxMinCoordinates);
         SetDataToObject(this.gameObject, verticesData, leftTriangles, leftSection, isCollider, "Base", this.transform);
     }
 
@@ -131,18 +131,18 @@ public class ChangingMesh : MonoBehaviour
         mesh.SetColors(verticesData.colors);
     }
 
-    private void SetVerticesData(Mesh mesh, VerticesData oldVerticesData, List<int> triangles, List<int> sectionTriangles)
+    private void SetVerticesData(Mesh mesh, VerticesData verticesData, List<int> triangles, List<int> sectionTriangles)
     {
         mesh.subMeshCount = 2;
         mesh.SetTriangles(_emptyList, 0, true, 0);
         mesh.SetTriangles(_emptyList, 1, true, 0);
-        mesh.SetVertices(oldVerticesData.vertices);
+        mesh.SetVertices(verticesData.vertices);
         mesh.SetTriangles(triangles, 0, true, 0);
         mesh.SetTriangles(sectionTriangles, 1, true, 0);
         triangles.AddRange(sectionTriangles);
-        mesh.SetNormals(oldVerticesData.normals);
-        mesh.SetColors(oldVerticesData.colors);
-        mesh.SetUVs(0, oldVerticesData.uvs);
+        mesh.SetNormals(verticesData.normals);
+        mesh.SetColors(verticesData.colors);
+        mesh.SetUVs(0, verticesData.uvs);
     }
 
     //что-то сделать с асинхронностью
@@ -402,8 +402,8 @@ public class ChangingMesh : MonoBehaviour
             nullableMinZ = Min(nullableMinZ, vertix.z);
         }
         return new MaxMinCoordinates {
-            MaxX=(float)nullableMaxX,
-            MaxY=(float)nullableMaxY,
+            MaxX = (float)nullableMaxX,
+            MaxY = (float)nullableMaxY,
             MaxZ = (float)nullableMaxZ,
             MinX = (float)nullableMinX,
             MinY = (float)nullableMinY,
@@ -430,24 +430,15 @@ public class ChangingMesh : MonoBehaviour
         }
     }
 
-    private void SetVerticesDataForSection(List<int> section, VerticesData verticesData, Vector3 commonNormal,
+    private void SetVerticesDataForSection(Dictionary<int, int> sectionIndeces, VerticesData verticesData, Vector3 commonNormal,
                                             MaxMinCoordinates coordinates)
     {
-        var maxX = coordinates.MaxX;
-        var maxY = coordinates.MaxY;
-        var maxZ = coordinates.MaxZ;
-        var minX = coordinates.MinX;
-        var minY = coordinates.MinY;
-        var minZ = coordinates.MinZ;
-        foreach(int vertixIndex in section)
+        foreach(var indeces in sectionIndeces)
         {
-            if(!verticesData.normals[vertixIndex].Equals(Vector3.zero))
-            {
-                continue;
-            }
-            verticesData.normals[vertixIndex] = commonNormal;
-            verticesData.uvs[vertixIndex] = GetUvsForVertix(verticesData.vertices[vertixIndex], 
-                maxX, maxY, maxZ, minX, minY, minZ);
+            verticesData.normals[indeces.Key] = commonNormal;
+            verticesData.normals[indeces.Value] = commonNormal;
+            verticesData.uvs[indeces.Key] = GetUvsForVertix(verticesData.vertices[indeces.Key], coordinates);
+            verticesData.uvs[indeces.Value] = GetUvsForVertix(verticesData.vertices[indeces.Value], coordinates);
         }
     }
 
@@ -467,7 +458,7 @@ public class ChangingMesh : MonoBehaviour
             FixUnusedVertices(mesh, triangles);
             collider.convex = true;
             changingMesh._colliderTriangles = triangles;
-            changingMesh._colliderVerticesData = verticesData;
+            changingMesh._colliderVerticesData = verticesData.Copy();
             objectTransform.position = correctTransform.position;
             objectTransform.rotation = correctTransform.rotation;
             StartCoroutine(changingMesh.PrepareForSlashing());
@@ -478,7 +469,7 @@ public class ChangingMesh : MonoBehaviour
             mesh.name = MeshName;
             SetVerticesData(mesh, verticesData, triangles, section);
             changingMesh._renderingTriangles = triangles;
-            changingMesh._renderingVerticesData = verticesData;
+            changingMesh._renderingVerticesData = verticesData.Copy();
         }
     }
 
@@ -572,19 +563,17 @@ public class ChangingMesh : MonoBehaviour
         array[2] = tmp;
     }
 
-    private Vector2 GetUvsForVertix(Vector3 vertix, 
-                                    float maxX, float maxY, float maxZ,
-                                    float minX, float minY, float minZ)
+    private Vector2 GetUvsForVertix(Vector3 vertix, MaxMinCoordinates coordinates)
     {
-        float magnitudeX = maxX - minX;
-        float magnitudeY = maxY - minY;
-        float magnitudeZ = maxZ - minZ;
+        float magnitudeX = coordinates.MaxX - coordinates.MinX;
+        float magnitudeY = coordinates.MaxY - coordinates.MinY;
+        float magnitudeZ = coordinates.MaxZ - coordinates.MinZ;
         float firstMagnitude, secondMagnitude, firstCoordinate, secondCoordinate, minMagnitude, minCoordinate;
         (firstMagnitude, firstCoordinate, minMagnitude, minCoordinate) = (magnitudeX > magnitudeY) ? 
-            (magnitudeX, vertix.x - minX, magnitudeY, vertix.y - minY) :
-            (magnitudeY, vertix.y - minY, magnitudeX, vertix.x - minX);
+            (magnitudeX, vertix.x - coordinates.MinX, magnitudeY, vertix.y - coordinates.MinY) :
+            (magnitudeY, vertix.y - coordinates.MinY, magnitudeX, vertix.x - coordinates.MinX);
         (secondMagnitude, secondCoordinate) = (magnitudeZ > minMagnitude) ? 
-            (magnitudeZ, vertix.z - minZ) : (minMagnitude, minCoordinate);
+            (magnitudeZ, vertix.z - coordinates.MinZ) : (minMagnitude, minCoordinate);
         return new Vector2(firstCoordinate, secondCoordinate);
     }
 
