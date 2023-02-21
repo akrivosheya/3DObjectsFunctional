@@ -4,6 +4,7 @@ using UnityEngine;
 public class VerticesData
 {
     public int Count { get => vertices.Count; }
+    public bool HasUnusedVertices { get; set; }
     public List<Vector3> vertices { get; set; }
     public List<Color> colors { get; set; }
     public List<Vector3> normals { get; set; }
@@ -49,6 +50,23 @@ public class VerticesData
         uvs.Add(uv);
     }
 
+    public void AddFrom(VerticesData verticesData, int index)
+    {
+        //проверка
+        vertices.Add(verticesData.vertices[index]);
+        colors.Add(verticesData.colors[index]);
+        normals.Add(verticesData.normals[index]);
+        uvs.Add(verticesData.uvs[index]);
+    }
+
+    public void Set(VerticesData verticesData)
+    {
+        vertices = verticesData.vertices;
+        colors = verticesData.colors;
+        normals = verticesData.normals;
+        uvs = verticesData.uvs;
+    }
+
     public void CopyNormals(VerticesData anotherVerticesData)
     {
         var newNormals = new Vector3[anotherVerticesData.Count];
@@ -67,5 +85,28 @@ public class VerticesData
         normals.CopyTo(newNormals);
         uvs.CopyTo(newUvs);
         return new VerticesData(new List<Vector3>(newVertices), new List<Color>(newColors), new List<Vector3>(newNormals), new List<Vector2>(newUvs));
+    }
+
+    public void RemoveAfter(int firstIndex)
+    {
+        vertices.RemoveRange(firstIndex, vertices.Count - firstIndex);
+        colors.RemoveRange(firstIndex, colors.Count - firstIndex);
+        normals.RemoveRange(firstIndex, normals.Count - firstIndex);
+        uvs.RemoveRange(firstIndex, uvs.Count - firstIndex);
+    }
+
+    public void Swap(int i, int j)
+    {
+        Swap(vertices, i, j);
+        Swap(colors, i, j);
+        Swap(normals, i, j);
+        Swap(uvs, i, j);
+    }
+
+    private void Swap<T>(List<T> list, int i, int j)
+    {
+        T tmp = list[i];
+        list[i] = list[j];
+        list[j] = tmp;
     }
 }

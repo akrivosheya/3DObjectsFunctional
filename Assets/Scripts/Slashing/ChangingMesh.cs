@@ -21,6 +21,7 @@ public class ChangingMesh : MonoBehaviour
     private Mesh _childMesh;
     private VerticesData _renderingVerticesData = new VerticesData();
     private VerticesData _colliderVerticesData = new VerticesData();
+    private Task _unusedVerticesCollectingTask;
     private List<int> _renderingTriangles;
     private List<int> _colliderTriangles;
     private List<int> _emptyList = new List<int>();
@@ -43,6 +44,11 @@ public class ChangingMesh : MonoBehaviour
 
             StartCoroutine(PrepareForSlashing());
         }
+    }
+
+    void Update()
+    {
+        //if(_unusedVerticesCollectingTask.IsCompleted)
     }
 
     public void SliceByPlane(float A, float B, float C, float D)
@@ -91,6 +97,7 @@ public class ChangingMesh : MonoBehaviour
         //нужны копии вершин
         SetVerticesDataForSection(sectionIndeces, childVerticesData, new Vector3(-plane.A, -plane.B, -plane.C), maxMinCoordinates);
         SetDataToObject(_childObject, childVerticesData, rightTriangles, rightSection, isCollider, ChildMeshName, this.transform);
+        _childObject.SetActive(true);
 
         SetVerticesDataForSection(sectionIndeces, verticesData, new Vector3(plane.A, plane.B, plane.C), maxMinCoordinates);
         SetDataToObject(this.gameObject, verticesData, leftTriangles, leftSection, isCollider, BaseMeshName, this.transform);
@@ -110,6 +117,27 @@ public class ChangingMesh : MonoBehaviour
             }
         }
         mesh.SetVertices(vertices);
+    }
+
+    private void DeleteUnusedVertices(VerticesData verticesData, List<int> triangles)
+    {
+        var mapOldIndecesToNew = new Dictionary<int,int>();
+        var newVerticesData = new VerticesData();
+        for(int i = 0; i < triangles.Count; ++i)
+        {
+            var vertixIndex = triangles[i];
+            if(mapOldIndecesToNew.ContainsKey(vertixIndex))
+            {
+                triangles[i] = mapOldIndecesToNew[vertixIndex];
+            }
+            else
+            {
+                newVerticesData.AddFrom(verticesData, vertixIndex);
+                mapOldIndecesToNew[triangles[i]] = newVerticesData.Count - 1;
+                triangles[i] = newVerticesData.Count - 1;
+            }
+        }
+        verticesData.Set(newVerticesData);
     }
 
     private void InitializeData(Mesh mesh, List<int> triangles, VerticesData verticesData)
@@ -587,13 +615,21 @@ public class ChangingMesh : MonoBehaviour
         yield return new WaitForSeconds(TimeForNoSlashing);
 
         _childObject = Instantiate(this.gameObject);
+        _childObject.SetActive(false);
         var childChangingMesh = _childObject.GetComponent<ChangingMesh>();
         childChangingMesh._isBase = false;
-        childChangingMesh._renderingVerticesData = _renderingVerticesData.Copy();
-        childChangingMesh._colliderVerticesData = _colliderVerticesData.Copy();
         _childObject.transform.position = ChildPosition;
         _childObject.GetComponent<Rigidbody>().constraints = RigidbodyConstraints.FreezeAll;
         _childMesh = _childObject.GetComponent<MeshFilter>().mesh;
-        _canSlash = true;
+
+        _unusedVerticesCollectingTask = new Task(() => 
+        {
+            DeleteUnusedVertices(_renderingVerticesData, _renderingTriangles);
+            DeleteUnusedVertices(_colliderVerticesData, _colliderTriangles);
+            childChangingMesh._renderingVerticesData = _renderingVerticesData.Copy();
+            childChangingMesh._colliderVerticesData = _colliderVerticesData.Copy();
+            _canSlash = true;
+        });
+        _unusedVerticesCollectingTask.Start();
     }
 }
