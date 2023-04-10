@@ -4,10 +4,10 @@ public record TaskData
 {
     public VerticesData NewVerticesData { get; } = new VerticesData();
     public Dictionary<int, int> SectionIndeces { get; } = new Dictionary<int, int>();
-    public List<int> LeftTriangles { get; } = new List<int>();
-    public List<int> RightTriangles { get; } = new List<int>();
-    public List<int> LeftSection { get; } = new List<int>();
-    public List<int> RightSection { get; } = new List<int>();
+    public List<int> LeftTriangles { get; set; } = new List<int>();
+    public List<int> RightTriangles { get; set; } = new List<int>();
+    public List<int> LeftSection { get; set; } = new List<int>();
+    public List<int> RightSection { get; set; } = new List<int>();
     public List<int> LeftTrianglesToModify { get; } = new List<int>();
     public List<int> RightTrianglesToModify { get; } = new List<int>();
     public List<int> LeftSectionToModify { get; } = new List<int>();

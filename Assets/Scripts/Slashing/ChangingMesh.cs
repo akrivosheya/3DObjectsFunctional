@@ -23,11 +23,13 @@ public class ChangingMesh : MonoBehaviour
     private VerticesData _renderingVerticesData = new VerticesData();
     private VerticesData _colliderVerticesData = new VerticesData();
     private Task _unusedVerticesCollectingTask;
+    private Task<(TaskData, TaskData)> _slashingTask;
     private List<int> _renderingTriangles;
     private List<int> _colliderTriangles;
     private List<int> _emptyList = new List<int>();
     private int _slicesCount;
     private bool _canSlash = false;
+    private bool _isSlashing = false;
     private bool _isBase = true;
     private System.TimeSpan total = new System.TimeSpan(0);
 
@@ -51,7 +53,28 @@ public class ChangingMesh : MonoBehaviour
 
     void Update()
     {
-        //if(_unusedVerticesCollectingTask.IsCompleted)
+        if(_isSlashing && _slashingTask.IsCompleted)
+        {
+            (TaskData renderingData, TaskData colliderData) = _slashingTask.Result;
+            var childChangingMesh = _childObject.GetComponent<ChangingMesh>();
+            SetDataToObject(_childObject, childChangingMesh._renderingVerticesData, renderingData.RightTriangles, renderingData.RightSection, false, ChildMeshName, this.transform);
+            SetDataToObject(this.gameObject, _renderingVerticesData, renderingData.LeftTriangles, renderingData.LeftSection, false, BaseMeshName, this.transform);
+            SetDataToObject(_childObject, childChangingMesh._colliderVerticesData, colliderData.RightTriangles, colliderData.RightSection, true, ChildMeshName, this.transform);
+            SetDataToObject(this.gameObject, _colliderVerticesData, colliderData.LeftTriangles, colliderData.LeftSection, true, BaseMeshName, this.transform);
+            _childObject.SetActive(true);
+            _childObject.GetComponent<Rigidbody>().constraints = RigidbodyConstraints.None;
+
+            if(_slicesCount >= MaxSlicesCount)
+            {
+                Destroy(childChangingMesh);
+                Destroy(this);
+            }
+            else
+            {
+                childChangingMesh._slicesCount = _slicesCount;
+            }
+            _isSlashing = false;
+        }
     }
 
     public void SliceByPlane(float A, float B, float C, float D)
@@ -62,27 +85,22 @@ public class ChangingMesh : MonoBehaviour
         }
         ++_slicesCount;
         _canSlash = false;
-        var plane = new Plane { A=A, B=B, C=C, D=D };
         var childChangingMesh = _childObject.GetComponent<ChangingMesh>();
-        var time = System.DateTime.Now;
-        SliceByPlane(plane, false, _renderingTriangles, _renderingVerticesData, childChangingMesh._renderingVerticesData);
-        total += (System.DateTime.Now - time);
-        Debug.Log("Time: " + total);
-        SliceByPlane(plane, true, _colliderTriangles, _colliderVerticesData, childChangingMesh._colliderVerticesData);
-        _childObject.GetComponent<Rigidbody>().constraints = RigidbodyConstraints.None;
-
-        if(_slicesCount >= MaxSlicesCount)
+        _slashingTask = new Task<(TaskData, TaskData)>(() => 
         {
-            Destroy(childChangingMesh);
-            Destroy(this);
-        }
-        else
-        {
-            childChangingMesh._slicesCount = _slicesCount;
-        }
+            var plane = new Plane { A=A, B=B, C=C, D=D };
+            var time = System.DateTime.Now;
+            var taskDataRendering = SliceByPlane(plane, false, _renderingTriangles, _renderingVerticesData, childChangingMesh._renderingVerticesData);
+            total += (System.DateTime.Now - time);
+            Debug.Log("Time: " + total);
+            var taskDataCollider = SliceByPlane(plane, true, _colliderTriangles, _colliderVerticesData, childChangingMesh._colliderVerticesData);
+            return (taskDataRendering, taskDataCollider);
+        });
+        _slashingTask.Start();
+        _isSlashing = true;
     }
 
-    private void SliceByPlane(Plane plane, bool isCollider, List<int> triangles, VerticesData verticesData, VerticesData childVerticesData)
+    private TaskData SliceByPlane(Plane plane, bool isCollider, List<int> triangles, VerticesData verticesData, VerticesData childVerticesData)
     {
         var sectionIndeces = new Dictionary<int, int>();
         var leftTriangles = new List<int>();
@@ -109,11 +127,9 @@ public class ChangingMesh : MonoBehaviour
         SetIndecesForSections(sectionIndeces, mainSectionIndex, leftSection, rightSection);
 
         SetVerticesDataForSection(sectionIndeces, childVerticesData, new Vector3(-plane.A, -plane.B, -plane.C), maxMinCoordinates);
-        SetDataToObject(_childObject, childVerticesData, rightTriangles, rightSection, isCollider, ChildMeshName, this.transform);
-        _childObject.SetActive(true);
-
         SetVerticesDataForSection(sectionIndeces, verticesData, new Vector3(plane.A, plane.B, plane.C), maxMinCoordinates);
-        SetDataToObject(this.gameObject, verticesData, leftTriangles, leftSection, isCollider, BaseMeshName, this.transform);
+
+        return new TaskData{ LeftTriangles=leftTriangles, RightTriangles=rightTriangles, LeftSection=leftSection, RightSection=rightSection };
     }
 
     //лучше использовать другой подход
