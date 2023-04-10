@@ -10,6 +10,7 @@ public class ChangingMesh : MonoBehaviour
     */
     [SerializeField] private Vector3 ChildPosition = new Vector3(4f, 0f, 4f);
     [SerializeField] private int TimeForNoSlashing = 1;
+    [SerializeField] private int MaxSlicesCount = 2;
     private readonly Color ColorForSection = Color.white;
     private readonly Color ColorForOuter = Color.black;
     private readonly string ChildMeshName = "Child";
@@ -25,6 +26,7 @@ public class ChangingMesh : MonoBehaviour
     private List<int> _renderingTriangles;
     private List<int> _colliderTriangles;
     private List<int> _emptyList = new List<int>();
+    private int _slicesCount;
     private bool _canSlash = false;
     private bool _isBase = true;
     private System.TimeSpan total = new System.TimeSpan(0);
@@ -33,6 +35,7 @@ public class ChangingMesh : MonoBehaviour
     {
         if(_isBase)
         {
+            _slicesCount = 0;
             _renderingTriangles = new List<int>();
             Mesh mesh = GetComponent<MeshFilter>().mesh;
             InitializeData(mesh, _renderingTriangles, _renderingVerticesData);
@@ -57,6 +60,7 @@ public class ChangingMesh : MonoBehaviour
         {
             return;
         }
+        ++_slicesCount;
         _canSlash = false;
         var plane = new Plane { A=A, B=B, C=C, D=D };
         var childChangingMesh = _childObject.GetComponent<ChangingMesh>();
@@ -66,6 +70,16 @@ public class ChangingMesh : MonoBehaviour
         Debug.Log("Time: " + total);
         SliceByPlane(plane, true, _colliderTriangles, _colliderVerticesData, childChangingMesh._colliderVerticesData);
         _childObject.GetComponent<Rigidbody>().constraints = RigidbodyConstraints.None;
+
+        if(_slicesCount >= MaxSlicesCount)
+        {
+            Destroy(childChangingMesh);
+            Destroy(this);
+        }
+        else
+        {
+            childChangingMesh._slicesCount = _slicesCount;
+        }
     }
 
     private void SliceByPlane(Plane plane, bool isCollider, List<int> triangles, VerticesData verticesData, VerticesData childVerticesData)
@@ -94,7 +108,6 @@ public class ChangingMesh : MonoBehaviour
         var maxMinCoordinates = FindMaxMinCoordinates(verticesData, offset);
         SetIndecesForSections(sectionIndeces, mainSectionIndex, leftSection, rightSection);
 
-        //нужны копии вершин
         SetVerticesDataForSection(sectionIndeces, childVerticesData, new Vector3(-plane.A, -plane.B, -plane.C), maxMinCoordinates);
         SetDataToObject(_childObject, childVerticesData, rightTriangles, rightSection, isCollider, ChildMeshName, this.transform);
         _childObject.SetActive(true);
@@ -495,7 +508,10 @@ public class ChangingMesh : MonoBehaviour
             changingMesh._colliderTriangles = triangles;
             objectTransform.position = correctTransform.position;
             objectTransform.rotation = correctTransform.rotation;
-            StartCoroutine(changingMesh.PrepareForSlashing());
+            if(_slicesCount < MaxSlicesCount)
+            {
+                StartCoroutine(changingMesh.PrepareForSlashing());
+            }
         }
         else
         {
