@@ -39,13 +39,12 @@ public class ChangingMesh : MonoBehaviour
         {
             _slicesCount = 0;
             _renderingTriangles = new List<int>();
-            Mesh mesh = GetComponent<MeshFilter>().mesh;
-            InitializeData(mesh, _renderingTriangles, _renderingVerticesData);
-            mesh.subMeshCount = 2;
-            
             _colliderTriangles = new List<int>();
+            Mesh mesh = GetComponent<MeshFilter>().mesh;
+            mesh.subMeshCount = 2;
             mesh = GetComponent<MeshCollider>().sharedMesh;
-            InitializeData(mesh, _colliderTriangles, _colliderVerticesData);
+            mesh.subMeshCount = 2;
+            GetComponent<MeshCollider>().sharedMesh = mesh;
 
             StartCoroutine(PrepareForSlashing());
         }
@@ -86,6 +85,12 @@ public class ChangingMesh : MonoBehaviour
         ++_slicesCount;
         _canSlash = false;
         var childChangingMesh = _childObject.GetComponent<ChangingMesh>();
+        Mesh renderingMesh = GetComponent<MeshFilter>().mesh;
+        Mesh colliderMesh = GetComponent<MeshCollider>().sharedMesh;
+        InitializeData(renderingMesh, _renderingTriangles, _renderingVerticesData);
+        InitializeData(colliderMesh, _colliderTriangles, _colliderVerticesData);
+        childChangingMesh._renderingVerticesData = _renderingVerticesData.Copy();
+        childChangingMesh._colliderVerticesData = _colliderVerticesData.Copy();
         _slashingTask = new Task<(TaskData, TaskData)>(() => 
         {
             var plane = new Plane { A=A, B=B, C=C, D=D };
@@ -175,6 +180,9 @@ public class ChangingMesh : MonoBehaviour
         mesh.GetNormals(verticesData.normals);
         mesh.GetUVs(0, verticesData.uvs);
         mesh.GetTriangles(triangles, 0);
+        var sectionTriangles = new List<int>();
+        mesh.GetTriangles(sectionTriangles, 1);
+        triangles.AddRange(sectionTriangles);
         mesh.GetColors(verticesData.colors);
         for(int i = 0; i < verticesData.Count; ++i)
         {
@@ -654,7 +662,12 @@ public class ChangingMesh : MonoBehaviour
         _childObject.GetComponent<Rigidbody>().constraints = RigidbodyConstraints.FreezeAll;
         _childMesh = _childObject.GetComponent<MeshFilter>().mesh;
 
-        _unusedVerticesCollectingTask = new Task(() => 
+        _renderingTriangles.Clear();
+        _colliderTriangles.Clear();
+        _renderingVerticesData.Clear();
+        _colliderVerticesData.Clear();
+        _canSlash = true;
+        /*_unusedVerticesCollectingTask = new Task(() => 
         {
             DeleteUnusedVertices(_renderingVerticesData, _renderingTriangles);
             DeleteUnusedVertices(_colliderVerticesData, _colliderTriangles);
@@ -662,6 +675,6 @@ public class ChangingMesh : MonoBehaviour
             childChangingMesh._colliderVerticesData = _colliderVerticesData.Copy();
             _canSlash = true;
         });
-        _unusedVerticesCollectingTask.Start();
+        _unusedVerticesCollectingTask.Start();*/
     }
 }

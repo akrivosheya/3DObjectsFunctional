@@ -87,6 +87,14 @@ public class VerticesData
         return new VerticesData(new List<Vector3>(newVertices), new List<Color>(newColors), new List<Vector3>(newNormals), new List<Vector2>(newUvs));
     }
 
+    public void Clear()
+    {
+        vertices.Clear();
+        colors.Clear();
+        normals.Clear();
+        uvs.Clear();
+    }
+
     public void RemoveAfter(int firstIndex)
     {
         vertices.RemoveRange(firstIndex, vertices.Count - firstIndex);
